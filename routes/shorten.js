@@ -1,33 +1,46 @@
 const express = require("express");
-const { generateHash, decodeHash } = require("../utils/hash");
+const validator = require("validator");
+const { generateHash } = require("../utils/hash");
 
 const router = express.Router();
 
-// In-memory mapping for runtime storage
+// Persistent mapping for runtime storage
 const urlMap = new Map();
+const reverseMap = new Map();
 
-// Shorten a URL
+const isValidUrl = (url) => validator.isURL(url, { require_protocol: true });
+
 router.post("/", (req, res) => {
-  const { originalUrl } = req.body;
+  const { originalUrl, customAlias } = req.body;
 
   if (!originalUrl) {
     return res.status(400).json({ error: "Original URL is required" });
   }
 
-  const hash = generateHash(originalUrl);
+  if (!isValidUrl(originalUrl)) {
+    return res.status(400).json({ error: "Invalid URL format" });
+  }
 
-  // Save mapping temporarily in memory
+  const hash = (customAlias || generateHash(originalUrl)).toLowerCase();
+
+  if (customAlias && urlMap.has(hash)) {
+    return res.status(400).json({ error: "Custom alias already exists" });
+  }
+
+  if (!customAlias && reverseMap.has(originalUrl)) {
+    return res.json({
+      shortUrl: `http://localhost:3000/shorten/${reverseMap.get(originalUrl)}`,
+    });
+  }
+
   urlMap.set(hash, originalUrl);
-
-  const shortUrl = `http://localhost:3000/shorten/${hash}`;
-  res.json({ shortUrl });
+  reverseMap.set(originalUrl, hash);
+  res.json({ shortUrl: `http://localhost:3000/shorten/${hash}` });
 });
 
-// Redirect to original URL
 router.get("/:hash", (req, res) => {
   const { hash } = req.params;
-
-  const originalUrl = urlMap.get(hash);
+  const originalUrl = urlMap.get(hash.toLowerCase());
 
   if (!originalUrl) {
     return res.status(404).json({ error: "URL not found" });

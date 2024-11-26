@@ -1,9 +1,11 @@
+const cors = require("cors");
 const express = require("express");
 const shortenRouter = require("./routes/shorten");
 
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 
 // Routes
